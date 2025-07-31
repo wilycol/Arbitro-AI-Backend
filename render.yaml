@@ -1,0 +1,9 @@
+services:
+  - type: cron
+    name: arbitro-json-updater
+    runtime: python
+    repo: https://github.com/wilycol/Arbitro-AI
+    branch: main
+    schedule: "*/3 * * * *"
+    buildCommand: ""
+    startCommand: "python main.py"

@@ -1,4 +1,3 @@
-# main.py
 import requests, json, os
 from datetime import datetime
 
@@ -147,11 +146,19 @@ def ejecutar():
     with open(f"{output_folder}/destacadas_arbitraje.json", "w", encoding="utf-8") as f:
         json.dump(destacadas, f, indent=2, ensure_ascii=False)
 
-    os.chdir("Arbitro-AI")
-    os.system("git add public/*.json")
-    os.system('git commit -m "🤖 Actualización automática de señales completas y destacadas"')
-    os.system("git push origin main")
-    os.chdir("..")
+    # Push con autenticación vía token
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        os.chdir("Arbitro-AI")
+        os.system("git config --global user.name 'Wily Bot'")
+        os.system("git config --global user.email 'wilycol492@gmail.com'")
+        os.system("git remote set-url origin https://{}@github.com/wilycol/Arbitro-AI.git".format(token))
+        os.system("git add public/*.json")
+        os.system('git commit -m "🤖 Auto-update desde Render cron job"')
+        os.system("git push origin main")
+        os.chdir("..")
+    else:
+        print("❌ No se encontró la variable GITHUB_TOKEN. El push no se realizó.")
 
 if __name__ == "__main__":
     ejecutar()

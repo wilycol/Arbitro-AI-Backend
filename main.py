@@ -1,20 +1,11 @@
 import requests, json, os
 from datetime import datetime
 
-# Métodos de pago operables permitidos (en forma estándar)
-METODOS_PERMITIDOS = ["uala", "global66", "paypal", "nequi"]
+METODOS_PERMITIDOS = ["UALA", "Global66", "Paypal", "Nequi"]
 
 remote_url = "https://github.com/wilycol/Arbitro-AI"
 if not os.path.exists("Arbitro-AI"):
     os.system(f"git clone {remote_url}")
-
-# Función para coincidencia flexible de métodos de pago
-def metodo_valido(lista_metodos):
-    for m in lista_metodos:
-        normalizado = m.lower().replace(" ", "").replace("-", "")
-        if any(normalizado in mp for mp in METODOS_PERMITIDOS):
-            return True
-    return False
 
 def formatear_oferta(oferta, exchange, tipo):
     return {
@@ -27,7 +18,7 @@ def formatear_oferta(oferta, exchange, tipo):
         "max": int(oferta.get("max", 0)),
         "nickname": oferta.get("nickname", ""),
         "metodos_pago": oferta.get("metodos_pago", []),
-        "operable": metodo_valido(oferta.get("metodos_pago", [])),
+        "operable": any(m in METODOS_PERMITIDOS for m in oferta.get("metodos_pago", [])),
         "comision_aprox": round(float(oferta["precio"]) * 0.008, 2),
         "brecha": 0.0,
         "prioridad": 1,
@@ -55,7 +46,7 @@ def obtener_binance(tipo):
             user = item["advertiser"]
             metodos = [m["tradeMethodName"] for m in adv.get("tradeMethods", [])]
             reputacion = f"{user.get('monthFinishRate', 0)*100:.2f}%" if user.get("monthFinishRate") else "N/A"
-            if metodo_valido(metodos):
+            if any(m in METODOS_PERMITIDOS for m in metodos):
                 datos.append(formatear_oferta({
                     "precio": adv["price"],
                     "min": adv["minSingleTransAmount"],
@@ -82,10 +73,12 @@ def obtener_okx(tipo):
         "limit": "50"
     }
     res = requests.get(url, params=params)
+    print(f"📦 Respuesta OKX {tipo}: {res.status_code}")
+    print(res.text[:1000])
+
     for item in res.json().get("data", {}).get("orders", []):
         metodos = [m.upper() for m in item.get("paymentMethods", [])]
-        print(f"🧾 OKX métodos: {metodos}")
-        if metodo_valido(metodos):
+        if any(m in METODOS_PERMITIDOS for m in metodos):
             datos.append(formatear_oferta({
                 "precio": item["price"],
                 "min": item["minAmount"],
@@ -113,10 +106,12 @@ def obtener_bybit(tipo):
     }
     headers = {"Content-Type": "application/json"}
     res = requests.post(url, headers=headers, json=payload)
+    print(f"📦 Respuesta Bybit {tipo}: {res.status_code}")
+    print(res.text[:1000])
+
     for item in res.json().get("result", {}).get("items", []):
         metodos = [m.upper() for m in item.get("paymentMethods", [])]
-        print(f"🧾 Bybit métodos: {metodos}")
-        if metodo_valido(metodos):
+        if any(m in METODOS_PERMITIDOS for m in metodos):
             datos.append(formatear_oferta({
                 "precio": item["price"],
                 "min": item["minAmount"],
@@ -144,11 +139,6 @@ def ejecutar():
         all_signals.extend(obtener_okx(tipo))
         all_signals.extend(obtener_bybit(tipo))
 
-    print(f"\n🔢 Total señales generadas: {len(all_signals)}")
-    for exchange in ["Binance", "OKX", "Bybit"]:
-        count = sum(1 for s in all_signals if s["exchange"] == exchange)
-        print(f"{exchange}: {count} señales")
-
     now = datetime.now()
     timestamp = now.strftime("%Y%m%d_%H%M%S")
     output_folder = "Arbitro-AI/public"
@@ -165,15 +155,21 @@ def ejecutar():
     with open(f"{output_folder}/destacadas_arbitraje.json", "w", encoding="utf-8") as f:
         json.dump(destacadas, f, indent=2, ensure_ascii=False)
 
+    print(f"📊 Total señales generadas: {len(all_signals)}")
+    print(f"🔹 Binance: {len([s for s in all_signals if s['exchange'] == 'Binance'])} señales")
+    print(f"🔸 OKX: {len([s for s in all_signals if s['exchange'] == 'OKX'])} señales")
+    print(f"🟣 Bybit: {len([s for s in all_signals if s['exchange'] == 'Bybit'])} señales")
+
+    # Push con autenticación vía token
     token = os.environ.get("GITHUB_TOKEN")
     if token:
         os.chdir("Arbitro-AI")
         os.system("git config --global user.name 'Wily Bot'")
         os.system("git config --global user.email 'wilycol492@gmail.com'")
         os.system("git remote set-url origin https://{}@github.com/wilycol/Arbitro-AI.git".format(token))
+        os.system("git pull origin main --rebase")
         os.system("git add public/*.json")
         os.system('git commit -m "🤖 Auto-update desde Render cron job"')
-        os.system("git pull origin main --rebase")
         os.system("git push origin main")
         os.chdir("..")
     else:

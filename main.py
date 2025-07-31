@@ -155,8 +155,10 @@ def ejecutar():
         os.system("git remote set-url origin https://{}@github.com/wilycol/Arbitro-AI.git".format(token))
         os.system("git add public/*.json")
         os.system('git commit -m "🤖 Auto-update desde Render cron job"')
-        os.system("git push origin main")
+        os.system("git pull origin main --rebase")  # <-- 🔥 NUEVO
+        os.system("git push origin main")           # <-- 🔥 Asegura que sube bien
         os.chdir("..")
+
     else:
         print("❌ No se encontró la variable GITHUB_TOKEN. El push no se realizó.")
 

@@ -1,11 +1,20 @@
 import requests, json, os
 from datetime import datetime
 
-METODOS_PERMITIDOS = ["UALA", "Global66", "Paypal", "Nequi"]
+# Métodos de pago operables permitidos (en forma estándar)
+METODOS_PERMITIDOS = ["uala", "global66", "paypal", "nequi"]
 
 remote_url = "https://github.com/wilycol/Arbitro-AI"
 if not os.path.exists("Arbitro-AI"):
     os.system(f"git clone {remote_url}")
+
+# Función para coincidencia flexible de métodos de pago
+def metodo_valido(lista_metodos):
+    for m in lista_metodos:
+        normalizado = m.lower().replace(" ", "").replace("-", "")
+        if any(normalizado in mp for mp in METODOS_PERMITIDOS):
+            return True
+    return False
 
 def formatear_oferta(oferta, exchange, tipo):
     return {
@@ -18,7 +27,7 @@ def formatear_oferta(oferta, exchange, tipo):
         "max": int(oferta.get("max", 0)),
         "nickname": oferta.get("nickname", ""),
         "metodos_pago": oferta.get("metodos_pago", []),
-        "operable": any(m in METODOS_PERMITIDOS for m in oferta.get("metodos_pago", [])),
+        "operable": metodo_valido(oferta.get("metodos_pago", [])),
         "comision_aprox": round(float(oferta["precio"]) * 0.008, 2),
         "brecha": 0.0,
         "prioridad": 1,
@@ -46,7 +55,7 @@ def obtener_binance(tipo):
             user = item["advertiser"]
             metodos = [m["tradeMethodName"] for m in adv.get("tradeMethods", [])]
             reputacion = f"{user.get('monthFinishRate', 0)*100:.2f}%" if user.get("monthFinishRate") else "N/A"
-            if any(m in METODOS_PERMITIDOS for m in metodos):
+            if metodo_valido(metodos):
                 datos.append(formatear_oferta({
                     "precio": adv["price"],
                     "min": adv["minSingleTransAmount"],
@@ -75,7 +84,8 @@ def obtener_okx(tipo):
     res = requests.get(url, params=params)
     for item in res.json().get("data", {}).get("orders", []):
         metodos = [m.upper() for m in item.get("paymentMethods", [])]
-        if any(m in METODOS_PERMITIDOS for m in metodos):
+        print(f"🧾 OKX métodos: {metodos}")
+        if metodo_valido(metodos):
             datos.append(formatear_oferta({
                 "precio": item["price"],
                 "min": item["minAmount"],
@@ -105,7 +115,8 @@ def obtener_bybit(tipo):
     res = requests.post(url, headers=headers, json=payload)
     for item in res.json().get("result", {}).get("items", []):
         metodos = [m.upper() for m in item.get("paymentMethods", [])]
-        if any(m in METODOS_PERMITIDOS for m in metodos):
+        print(f"🧾 Bybit métodos: {metodos}")
+        if metodo_valido(metodos):
             datos.append(formatear_oferta({
                 "precio": item["price"],
                 "min": item["minAmount"],
@@ -133,7 +144,6 @@ def ejecutar():
         all_signals.extend(obtener_okx(tipo))
         all_signals.extend(obtener_bybit(tipo))
 
-    # Diagnóstico por consola
     print(f"\n🔢 Total señales generadas: {len(all_signals)}")
     for exchange in ["Binance", "OKX", "Bybit"]:
         count = sum(1 for s in all_signals if s["exchange"] == exchange)
@@ -155,7 +165,6 @@ def ejecutar():
     with open(f"{output_folder}/destacadas_arbitraje.json", "w", encoding="utf-8") as f:
         json.dump(destacadas, f, indent=2, ensure_ascii=False)
 
-    # Push con autenticación vía token
     token = os.environ.get("GITHUB_TOKEN")
     if token:
         os.chdir("Arbitro-AI")

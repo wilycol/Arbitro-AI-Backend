@@ -3,10 +3,6 @@ from datetime import datetime
 
 METODOS_PERMITIDOS = ["UALA", "Global66", "Paypal", "Nequi"]
 
-remote_url = "https://github.com/wilycol/Arbitro-AI"
-if not os.path.exists("Arbitro-AI"):
-    os.system(f"git clone {remote_url}")
-
 def formatear_oferta(oferta, exchange, tipo):
     return {
         "exchange": exchange,
@@ -30,8 +26,7 @@ def obtener_binance(tipo):
     url = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
     datos = []
     side = "BUY" if tipo == "SELL" else "SELL"
-    page = 1
-    while len(datos) < 20 and page <= 5:
+    for page in range(1, 6):
         payload = {
             "page": page,
             "rows": 20,
@@ -56,8 +51,8 @@ def obtener_binance(tipo):
                     "reputacion": reputacion,
                     "link": f"https://p2p.binance.com/en/advertiserDetail?advertiserNo={user['userNo']}"
                 }, "Binance", tipo))
-        page += 1
-    print(f"✅ Binance {tipo}: {len(datos)} señales")
+        if len(datos) >= 20:
+            break
     return datos[:20]
 
 def obtener_okx(tipo):
@@ -73,9 +68,6 @@ def obtener_okx(tipo):
         "limit": "50"
     }
     res = requests.get(url, params=params)
-    print(f"📦 Respuesta OKX {tipo}: {res.status_code}")
-    print(res.text[:1000])
-
     for item in res.json().get("data", {}).get("orders", []):
         metodos = [m.upper() for m in item.get("paymentMethods", [])]
         if any(m in METODOS_PERMITIDOS for m in metodos):
@@ -88,7 +80,6 @@ def obtener_okx(tipo):
                 "reputacion": item["user"].get("recentTradeCount", "N/A"),
                 "link": "https://www.okx.com/p2p-market"
             }, "OKX", tipo))
-    print(f"✅ OKX {tipo}: {len(datos)} señales")
     return datos[:20]
 
 def obtener_bybit(tipo):
@@ -106,9 +97,6 @@ def obtener_bybit(tipo):
     }
     headers = {"Content-Type": "application/json"}
     res = requests.post(url, headers=headers, json=payload)
-    print(f"📦 Respuesta Bybit {tipo}: {res.status_code}")
-    print(res.text[:1000])
-
     for item in res.json().get("result", {}).get("items", []):
         metodos = [m.upper() for m in item.get("paymentMethods", [])]
         if any(m in METODOS_PERMITIDOS for m in metodos):
@@ -121,7 +109,6 @@ def obtener_bybit(tipo):
                 "reputacion": item.get("recentOrderNum", "N/A"),
                 "link": "https://www.bybit.com/p2p"
             }, "Bybit", tipo))
-    print(f"✅ Bybit {tipo}: {len(datos)} señales")
     return datos[:20]
 
 def extraer_senales_destacadas(senales):
@@ -132,18 +119,30 @@ def extraer_senales_destacadas(senales):
         destacadas.extend(buy + sell)
     return destacadas
 
-def ejecutar():
+def main():
     all_signals = []
     for tipo in ["BUY", "SELL"]:
         all_signals.extend(obtener_binance(tipo))
         all_signals.extend(obtener_okx(tipo))
         all_signals.extend(obtener_bybit(tipo))
 
+    binance_buy = len([s for s in all_signals if s["exchange"] == "Binance" and s["tipo"] == "BUY"])
+    binance_sell = len([s for s in all_signals if s["exchange"] == "Binance" and s["tipo"] == "SELL"])
+    okx_buy = len([s for s in all_signals if s["exchange"] == "OKX" and s["tipo"] == "BUY"])
+    okx_sell = len([s for s in all_signals if s["exchange"] == "OKX" and s["tipo"] == "SELL"])
+    bybit_buy = len([s for s in all_signals if s["exchange"] == "Bybit" and s["tipo"] == "BUY"])
+    bybit_sell = len([s for s in all_signals if s["exchange"] == "Bybit" and s["tipo"] == "SELL"])
+
+    print("📡 Señales obtenidas:")
+    print(f"🟢 Binance: BUY={binance_buy} | SELL={binance_sell}")
+    print(f"🟠 OKX: BUY={okx_buy} | SELL={okx_sell}")
+    print(f"🔵 Bybit: BUY={bybit_buy} | SELL={bybit_sell}")
+    print(f"📊 Total señales: {len(all_signals)}")
+
     now = datetime.now()
     timestamp = now.strftime("%Y%m%d_%H%M%S")
     output_folder = "Arbitro-AI/public"
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    os.makedirs(output_folder, exist_ok=True)
 
     with open(f"{output_folder}/datos_arbitraje.json", "w", encoding="utf-8") as f:
         json.dump(all_signals, f, indent=2, ensure_ascii=False)
@@ -155,25 +154,12 @@ def ejecutar():
     with open(f"{output_folder}/destacadas_arbitraje.json", "w", encoding="utf-8") as f:
         json.dump(destacadas, f, indent=2, ensure_ascii=False)
 
-    print(f"📊 Total señales generadas: {len(all_signals)}")
-    print(f"🔹 Binance: {len([s for s in all_signals if s['exchange'] == 'Binance'])} señales")
-    print(f"🔸 OKX: {len([s for s in all_signals if s['exchange'] == 'OKX'])} señales")
-    print(f"🟣 Bybit: {len([s for s in all_signals if s['exchange'] == 'Bybit'])} señales")
-
-    # Push con autenticación vía token
-    token = os.environ.get("GITHUB_TOKEN")
-    if token:
-        os.chdir("Arbitro-AI")
-        os.system("git config --global user.name 'Wily Bot'")
-        os.system("git config --global user.email 'wilycol492@gmail.com'")
-        os.system("git remote set-url origin https://{}@github.com/wilycol/Arbitro-AI.git".format(token))
-        os.system("git pull origin main --rebase")
-        os.system("git add public/*.json")
-        os.system('git commit -m "🤖 Auto-update desde Render cron job"')
-        os.system("git push origin main")
-        os.chdir("..")
-    else:
-        print("❌ No se encontró la variable GITHUB_TOKEN. El push no se realizó.")
+    os.chdir("Arbitro-AI")
+    os.system("git add public/*.json")
+    os.system(f'git commit -m "🤖 Push desde Render ({timestamp})" || echo "⛔ Sin cambios para commit"')
+    os.system("git push origin main")
+    os.chdir("..")
+    print(f"✅ Push completado - {timestamp}")
 
 if __name__ == "__main__":
-    ejecutar()
+    main()

@@ -27,93 +27,108 @@ def formatear_oferta(oferta, exchange, tipo):
     }
 
 def obtener_binance(tipo):
-    url = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
-    datos = []
-    side = "BUY" if tipo == "SELL" else "SELL"
-    page = 1
-    while len(datos) < 20 and page <= 5:
-        payload = {
-            "page": page,
-            "rows": 20,
-            "payTypes": [],
-            "asset": "USDT",
-            "fiat": "COP",
-            "tradeType": side
-        }
-        res = requests.post(url, json=payload)
-        for item in res.json().get("data", []):
-            adv = item["adv"]
-            user = item["advertiser"]
-            metodos = [m["tradeMethodName"] for m in adv.get("tradeMethods", [])]
-            reputacion = f"{user.get('monthFinishRate', 0)*100:.2f}%" if user.get("monthFinishRate") else "N/A"
-            if any(m in METODOS_PERMITIDOS for m in metodos):
-                datos.append(formatear_oferta({
-                    "precio": adv["price"],
-                    "min": adv["minSingleTransAmount"],
-                    "max": adv["maxSingleTransAmount"],
-                    "nickname": user["nickName"],
-                    "metodos_pago": metodos,
-                    "reputacion": reputacion,
-                    "link": f"https://p2p.binance.com/en/advertiserDetail?advertiserNo={user['userNo']}"
-                }, "Binance", tipo))
-        page += 1
-    return datos[:20]
+    try:
+        url = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
+        datos = []
+        side = "BUY" if tipo == "SELL" else "SELL"
+        page = 1
+        while len(datos) < 20 and page <= 5:
+            payload = {
+                "page": page,
+                "rows": 20,
+                "payTypes": [],
+                "asset": "USDT",
+                "fiat": "COP",
+                "tradeType": side
+            }
+            res = requests.post(url, json=payload)
+            for item in res.json().get("data", []):
+                adv = item["adv"]
+                user = item["advertiser"]
+                metodos = [m["tradeMethodName"] for m in adv.get("tradeMethods", [])]
+                reputacion = f"{user.get('monthFinishRate', 0)*100:.2f}%" if user.get("monthFinishRate") else "N/A"
+                if any(m in METODOS_PERMITIDOS for m in metodos):
+                    datos.append(formatear_oferta({
+                        "precio": adv["price"],
+                        "min": adv["minSingleTransAmount"],
+                        "max": adv["maxSingleTransAmount"],
+                        "nickname": user["nickName"],
+                        "metodos_pago": metodos,
+                        "reputacion": reputacion,
+                        "link": f"https://p2p.binance.com/en/advertiserDetail?advertiserNo={user['userNo']}"
+                    }, "Binance", tipo))
+            page += 1
+        print(f"✅ Binance ({tipo}): {len(datos[:20])} señales")
+        return datos[:20]
+    except Exception as e:
+        print(f"❌ Error en Binance ({tipo}):", e)
+        return []
 
 def obtener_okx(tipo):
-    url = "https://www.okx.com/v3/c2c/tradingOrders/books"
-    datos = []
-    side = "sell" if tipo == "BUY" else "buy"
-    params = {
-        "quoteCurrency": "COP",
-        "baseCurrency": "USDT",
-        "side": side,
-        "paymentMethod": "",
-        "userType": "all",
-        "limit": "50"
-    }
-    res = requests.get(url, params=params)
-    for item in res.json().get("data", {}).get("orders", []):
-        metodos = [m.upper() for m in item.get("paymentMethods", [])]
-        if any(m in METODOS_PERMITIDOS for m in metodos):
-            datos.append(formatear_oferta({
-                "precio": item["price"],
-                "min": item["minAmount"],
-                "max": item["maxAmount"],
-                "nickname": item["user"]["nickName"],
-                "metodos_pago": metodos,
-                "reputacion": item["user"].get("recentTradeCount", "N/A"),
-                "link": "https://www.okx.com/p2p-market"
-            }, "OKX", tipo))
-    return datos[:20]
+    try:
+        url = "https://www.okx.com/v3/c2c/tradingOrders/books"
+        datos = []
+        side = "sell" if tipo == "BUY" else "buy"
+        params = {
+            "quoteCurrency": "COP",
+            "baseCurrency": "USDT",
+            "side": side,
+            "paymentMethod": "",
+            "userType": "all",
+            "limit": "50"
+        }
+        res = requests.get(url, params=params)
+        for item in res.json().get("data", {}).get("orders", []):
+            metodos = [m.upper() for m in item.get("paymentMethods", [])]
+            if any(m in METODOS_PERMITIDOS for m in metodos):
+                datos.append(formatear_oferta({
+                    "precio": item["price"],
+                    "min": item["minAmount"],
+                    "max": item["maxAmount"],
+                    "nickname": item["user"]["nickName"],
+                    "metodos_pago": metodos,
+                    "reputacion": item["user"].get("recentTradeCount", "N/A"),
+                    "link": "https://www.okx.com/p2p-market"
+                }, "OKX", tipo))
+        print(f"✅ OKX ({tipo}): {len(datos[:20])} señales")
+        return datos[:20]
+    except Exception as e:
+        print(f"❌ Error en OKX ({tipo}):", e)
+        return []
 
 def obtener_bybit(tipo):
-    url = "https://api2.bybit.com/fiat/otc/item/online"
-    datos = []
-    tradeType = "BUY" if tipo == "SELL" else "SELL"
-    payload = {
-        "userId": "",
-        "tokenId": "USDT",
-        "currencyId": "COP",
-        "payment": [],
-        "side": tradeType,
-        "size": 50,
-        "page": 1
-    }
-    headers = {"Content-Type": "application/json"}
-    res = requests.post(url, headers=headers, json=payload)
-    for item in res.json().get("result", {}).get("items", []):
-        metodos = [m.upper() for m in item.get("paymentMethods", [])]
-        if any(m in METODOS_PERMITIDOS for m in metodos):
-            datos.append(formatear_oferta({
-                "precio": item["price"],
-                "min": item["minAmount"],
-                "max": item["maxAmount"],
-                "nickname": item["nickName"],
-                "metodos_pago": metodos,
-                "reputacion": item.get("recentOrderNum", "N/A"),
-                "link": "https://www.bybit.com/p2p"
-            }, "Bybit", tipo))
-    return datos[:20]
+    try:
+        url = "https://api2.bybit.com/fiat/otc/item/online"
+        datos = []
+        tradeType = "BUY" if tipo == "SELL" else "SELL"
+        payload = {
+            "userId": "",
+            "tokenId": "USDT",
+            "currencyId": "COP",
+            "payment": [],
+            "side": tradeType,
+            "size": 50,
+            "page": 1
+        }
+        headers = {"Content-Type": "application/json"}
+        res = requests.post(url, headers=headers, json=payload)
+        for item in res.json().get("result", {}).get("items", []):
+            metodos = [m.upper() for m in item.get("paymentMethods", [])]
+            if any(m in METODOS_PERMITIDOS for m in metodos):
+                datos.append(formatear_oferta({
+                    "precio": item["price"],
+                    "min": item["minAmount"],
+                    "max": item["maxAmount"],
+                    "nickname": item["nickName"],
+                    "metodos_pago": metodos,
+                    "reputacion": item.get("recentOrderNum", "N/A"),
+                    "link": "https://www.bybit.com/p2p"
+                }, "Bybit", tipo))
+        print(f"✅ Bybit ({tipo}): {len(datos[:20])} señales")
+        return datos[:20]
+    except Exception as e:
+        print(f"❌ Error en Bybit ({tipo}):", e)
+        return []
 
 def extraer_senales_destacadas(senales):
     destacadas = []
@@ -146,7 +161,6 @@ def ejecutar():
     with open(f"{output_folder}/destacadas_arbitraje.json", "w", encoding="utf-8") as f:
         json.dump(destacadas, f, indent=2, ensure_ascii=False)
 
-    # Push con autenticación vía token
     token = os.environ.get("GITHUB_TOKEN")
     if token:
         os.chdir("Arbitro-AI")

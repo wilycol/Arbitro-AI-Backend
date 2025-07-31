@@ -57,6 +57,7 @@ def obtener_binance(tipo):
                     "link": f"https://p2p.binance.com/en/advertiserDetail?advertiserNo={user['userNo']}"
                 }, "Binance", tipo))
         page += 1
+    print(f"✅ Binance {tipo}: {len(datos)} señales")
     return datos[:20]
 
 def obtener_okx(tipo):
@@ -84,6 +85,7 @@ def obtener_okx(tipo):
                 "reputacion": item["user"].get("recentTradeCount", "N/A"),
                 "link": "https://www.okx.com/p2p-market"
             }, "OKX", tipo))
+    print(f"✅ OKX {tipo}: {len(datos)} señales")
     return datos[:20]
 
 def obtener_bybit(tipo):
@@ -113,6 +115,7 @@ def obtener_bybit(tipo):
                 "reputacion": item.get("recentOrderNum", "N/A"),
                 "link": "https://www.bybit.com/p2p"
             }, "Bybit", tipo))
+    print(f"✅ Bybit {tipo}: {len(datos)} señales")
     return datos[:20]
 
 def extraer_senales_destacadas(senales):
@@ -129,6 +132,12 @@ def ejecutar():
         all_signals.extend(obtener_binance(tipo))
         all_signals.extend(obtener_okx(tipo))
         all_signals.extend(obtener_bybit(tipo))
+
+    # Diagnóstico por consola
+    print(f"\n🔢 Total señales generadas: {len(all_signals)}")
+    for exchange in ["Binance", "OKX", "Bybit"]:
+        count = sum(1 for s in all_signals if s["exchange"] == exchange)
+        print(f"{exchange}: {count} señales")
 
     now = datetime.now()
     timestamp = now.strftime("%Y%m%d_%H%M%S")
@@ -155,10 +164,9 @@ def ejecutar():
         os.system("git remote set-url origin https://{}@github.com/wilycol/Arbitro-AI.git".format(token))
         os.system("git add public/*.json")
         os.system('git commit -m "🤖 Auto-update desde Render cron job"')
-        os.system("git pull origin main --rebase")  # <-- 🔥 NUEVO
-        os.system("git push origin main")           # <-- 🔥 Asegura que sube bien
+        os.system("git pull origin main --rebase")
+        os.system("git push origin main")
         os.chdir("..")
-
     else:
         print("❌ No se encontró la variable GITHUB_TOKEN. El push no se realizó.")
 

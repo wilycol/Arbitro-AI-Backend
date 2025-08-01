@@ -1,12 +1,18 @@
+
 import requests, json, os
 from datetime import datetime
 
+# Lista de métodos de pago permitidos para considerar una oferta como operable
 METODOS_PERMITIDOS = ["UALA", "Global66", "Paypal", "Nequi"]
 
+# URL del repositorio remoto de GitHub
 remote_url = "https://github.com/wilycol/Arbitro-AI"
+
+# Si el repositorio no está clonado localmente, clónalo
 if not os.path.exists("Arbitro-AI"):
     os.system(f"git clone {remote_url}")
 
+# Función para estructurar una oferta de cualquier exchange con campos estándar
 def formatear_oferta(oferta, exchange, tipo):
     return {
         "exchange": exchange,
@@ -26,110 +32,55 @@ def formatear_oferta(oferta, exchange, tipo):
         "reputacion": oferta.get("reputacion", "N/A")
     }
 
+# Función para obtener señales desde Binance
 def obtener_binance(tipo):
     try:
         url = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
         datos = []
         side = "BUY" if tipo == "SELL" else "SELL"
-        page = 1
-        while len(datos) < 20 and page <= 5:
-            payload = {
-                "page": page,
-                "rows": 20,
-                "payTypes": [],
-                "asset": "USDT",
-                "fiat": "COP",
-                "tradeType": side
-            }
-            res = requests.post(url, json=payload)
-            for item in res.json().get("data", []):
-                adv = item["adv"]
-                user = item["advertiser"]
-                metodos = [m["tradeMethodName"] for m in adv.get("tradeMethods", [])]
-                reputacion = f"{user.get('monthFinishRate', 0)*100:.2f}%" if user.get("monthFinishRate") else "N/A"
-                if any(m in METODOS_PERMITIDOS for m in metodos):
-                    datos.append(formatear_oferta({
-                        "precio": adv["price"],
-                        "min": adv["minSingleTransAmount"],
-                        "max": adv["maxSingleTransAmount"],
-                        "nickname": user["nickName"],
-                        "metodos_pago": metodos,
-                        "reputacion": reputacion,
-                        "link": f"https://p2p.binance.com/en/advertiserDetail?advertiserNo={user['userNo']}"
-                    }, "Binance", tipo))
-            page += 1
-        print(f"✅ Binance ({tipo}): {len(datos[:20])} señales")
-        return datos[:20]
+        criptos = ["USDT", "USDC"]
+
+        for cripto in criptos:
+            page = 1
+            while len([d for d in datos if d["cripto"] == cripto and d["tipo"] == tipo]) < 20 and page <= 5:
+                payload = {
+                    "page": page,
+                    "rows": 20,
+                    "payTypes": [],
+                    "asset": cripto,
+                    "fiat": "COP",
+                    "tradeType": side
+                }
+                res = requests.post(url, json=payload)
+                for item in res.json().get("data", []):
+                    adv = item["adv"]
+                    user = item["advertiser"]
+                    metodos = [m["tradeMethodName"] for m in adv.get("tradeMethods", [])]
+                    reputacion = f"{user.get('monthFinishRate', 0)*100:.2f}%" if user.get("monthFinishRate") else "N/A"
+                    if any(m in METODOS_PERMITIDOS for m in metodos):
+                        datos.append(formatear_oferta({
+                            "precio": adv["price"],
+                            "min": adv["minSingleTransAmount"],
+                            "max": adv["maxSingleTransAmount"],
+                            "nickname": user["nickName"],
+                            "metodos_pago": metodos,
+                            "reputacion": reputacion,
+                            "link": f"https://p2p.binance.com/en/advertiserDetail?advertiserNo={user['userNo']}",
+                            "cripto": cripto,
+                            "fiat": "COP"
+                        }, "Binance", tipo))
+                page += 1
+        print(f"✅ Binance ({tipo}): {len(datos[:40])} señales")
+        return datos[:40]
     except Exception as e:
         print(f"❌ Error en Binance ({tipo}):", e)
         return []
 
-def obtener_okx(tipo):
-    try:
-        url = "https://www.okx.com/v3/c2c/tradingOrders/books"
-        datos = []
-        side = "sell" if tipo == "BUY" else "buy"
-        params = {
-            "quoteCurrency": "COP",
-            "baseCurrency": "USDT",
-            "side": side,
-            "paymentMethod": "",
-            "userType": "all",
-            "limit": "50"
-        }
-        res = requests.get(url, params=params)
-        for item in res.json().get("data", {}).get("orders", []):
-            metodos = [m.upper() for m in item.get("paymentMethods", [])]
-            if any(m in METODOS_PERMITIDOS for m in metodos):
-                datos.append(formatear_oferta({
-                    "precio": item["price"],
-                    "min": item["minAmount"],
-                    "max": item["maxAmount"],
-                    "nickname": item["user"]["nickName"],
-                    "metodos_pago": metodos,
-                    "reputacion": item["user"].get("recentTradeCount", "N/A"),
-                    "link": "https://www.okx.com/p2p-market"
-                }, "OKX", tipo))
-        print(f"✅ OKX ({tipo}): {len(datos[:20])} señales")
-        return datos[:20]
-    except Exception as e:
-        print(f"❌ Error en OKX ({tipo}):", e)
-        return []
+# Funciones vacías para OKX y Bybit por ahora
+def obtener_okx(tipo): return []
+def obtener_bybit(tipo): return []
 
-def obtener_bybit(tipo):
-    try:
-        url = "https://api2.bybit.com/fiat/otc/item/online"
-        datos = []
-        tradeType = "BUY" if tipo == "SELL" else "SELL"
-        payload = {
-            "userId": "",
-            "tokenId": "USDT",
-            "currencyId": "COP",
-            "payment": [],
-            "side": tradeType,
-            "size": 50,
-            "page": 1
-        }
-        headers = {"Content-Type": "application/json"}
-        res = requests.post(url, headers=headers, json=payload)
-        for item in res.json().get("result", {}).get("items", []):
-            metodos = [m.upper() for m in item.get("paymentMethods", [])]
-            if any(m in METODOS_PERMITIDOS for m in metodos):
-                datos.append(formatear_oferta({
-                    "precio": item["price"],
-                    "min": item["minAmount"],
-                    "max": item["maxAmount"],
-                    "nickname": item["nickName"],
-                    "metodos_pago": metodos,
-                    "reputacion": item.get("recentOrderNum", "N/A"),
-                    "link": "https://www.bybit.com/p2p"
-                }, "Bybit", tipo))
-        print(f"✅ Bybit ({tipo}): {len(datos[:20])} señales")
-        return datos[:20]
-    except Exception as e:
-        print(f"❌ Error en Bybit ({tipo}):", e)
-        return []
-
+# Selecciona las mejores 5 BUY y 5 SELL por exchange
 def extraer_senales_destacadas(senales):
     destacadas = []
     for exchange in ["Binance", "OKX", "Bybit"]:
@@ -138,6 +89,7 @@ def extraer_senales_destacadas(senales):
         destacadas.extend(buy + sell)
     return destacadas
 
+# Función principal que orquesta todo el flujo
 def ejecutar():
     all_signals = []
     for tipo in ["BUY", "SELL"]:
@@ -174,5 +126,6 @@ def ejecutar():
     else:
         print("❌ No se encontró la variable GITHUB_TOKEN. El push no se realizó.")
 
+# Ejecuta la función principal si se corre el archivo directamente
 if __name__ == "__main__":
     ejecutar()

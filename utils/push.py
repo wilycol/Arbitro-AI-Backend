@@ -1,51 +1,40 @@
+# utils/push.py
+
 import os
-import subprocess
+import base64
+import json
+import requests
 from datetime import datetime
-import shutil
 
-REPO_URL = "https://github.com/wilycol/Arbitro-AI"
-CLONE_DIR = "temp_arbitro_ai"
-BRANCH = "main"
-FILES_TO_COPY = ["datos_arbitraje.json", "destacadas_arbitraje.json"]
-DEST_FOLDER = "public"
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+def push_to_github(file_path, repo, branch, token, target_path):
+    """Sube un archivo al repositorio especificado usando GitHub API."""
 
-def push_to_repo():
-    if not GITHUB_TOKEN:
-        print("❌ No se encontró la variable GITHUB_TOKEN")
-        return
+    api_url = f"https://api.github.com/repos/{repo}/contents/{target_path}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
 
-    # Construimos la URL con el token embebido (de forma segura)
-    auth_repo_url = REPO_URL.replace("https://", f"https://{GITHUB_TOKEN}@")
+    # Leer contenido del archivo local
+    with open(file_path, "rb") as f:
+        content = base64.b64encode(f.read()).decode("utf-8")
 
-    # Eliminamos carpeta anterior si existe
-    if os.path.exists(CLONE_DIR):
-        shutil.rmtree(CLONE_DIR)
+    # Verificar si el archivo ya existe para obtener SHA
+    response = requests.get(api_url, headers=headers)
+    if response.status_code == 200:
+        sha = response.json()["sha"]
+    else:
+        sha = None
 
-    try:
-        print("📥 Clonando repositorio de datos...")
-        subprocess.run(["git", "clone", "-b", BRANCH, auth_repo_url, CLONE_DIR], check=True)
+    data = {
+        "message": f"Actualización automática {datetime.now().isoformat()}",
+        "content": content,
+        "branch": branch,
+    }
 
-        # Copiamos los archivos generados al directorio destino
-        for filename in FILES_TO_COPY:
-            src = filename
-            dest = os.path.join(CLONE_DIR, DEST_FOLDER, filename)
-            shutil.copyfile(src, dest)
-            print(f"✅ Copiado: {src} ➡️ {dest}")
+    if sha:
+        data["sha"] = sha
 
-        # Hacemos commit y push
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        subprocess.run(["git", "-C", CLONE_DIR, "add", "."], check=True)
-        subprocess.run(["git", "-C", CLONE_DIR, "commit", "-m", f"📊 Update arbitrage data {now}"], check=True)
-        subprocess.run(["git", "-C", CLONE_DIR, "push"], check=True)
-
-        print("🚀 Push completado con éxito")
-
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Error durante el push: {e}")
-
-    # (Opcional) Borrar carpeta temporal
-    if os.path.exists(CLONE_DIR):
-        shutil.rmtree(CLONE_DIR)
-        print("🧹 Carpeta temporal eliminada")
-
+    response = requests.put(api_url, headers=headers, data=json.dumps(data))
+    response.raise_for_status()
+    return response.json()

@@ -8,10 +8,10 @@ from utils.push import push_to_repo
 from p2p_sources import get_binance_data, get_okx_data, get_bybit_data
 
 ARCHIVO_JSON = "public/datos_arbitraje.json"
+CARPETA_HISTORIAL = "historial_arbitraje"
 INTERVALO_MINUTOS = 3
 
 def formatear_senales(raw_data):
-    # Este formato debe seguir el estándar JSON que tú aprobaste
     resultado = []
     for entrada in raw_data:
         resultado.append({
@@ -51,8 +51,15 @@ async def ciclo_actualizacion():
             # Formatear
             procesadas = formatear_senales(todas)
 
-            # Guardar en archivo local
+            # Guardar archivo principal
             with open(ARCHIVO_JSON, "w", encoding="utf-8") as f:
+                json.dump(procesadas, f, indent=2, ensure_ascii=False)
+
+            # Guardar en historial con timestamp
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            archivo_historial = f"{CARPETA_HISTORIAL}/datos_arbitraje_{timestamp}.json"
+            os.makedirs(CARPETA_HISTORIAL, exist_ok=True)
+            with open(archivo_historial, "w", encoding="utf-8") as f:
                 json.dump(procesadas, f, indent=2, ensure_ascii=False)
 
             # Push a GitHub

@@ -1,0 +1,24 @@
+# 📁 Árbitro IA - Direcciones del Backend y Frontend
+
+## 🔗 Repositorio GitHub (Backend)
+- https://github.com/wilycol/Arbitro-AI
+
+## 🚀 Render (Backend en FastAPI)
+- https://arbitro-backend.onrender.com/  *(URL de ejemplo)*
+
+## 💻 Frontend Vercel (Dashboard visual)
+- https://arbitro-ia.vercel.app/  *(Dashboard principal de señales)*
+
+## 🤖 Google Studio AI (Árbitro IA Asistente)
+- https://makersuite.google.com/app/projects/arbitro-ia
+
+## 📂 JSON de señales en GitHub
+- `datos_arbitraje.json`:  
+  https://raw.githubusercontent.com/wilycol/Arbitro-AI/main/public/datos_arbitraje.json
+
+- `destacadas_arbitraje.json`:  
+  https://raw.githubusercontent.com/wilycol/Arbitro-AI/main/public/destacadas_arbitraje.json
+
+---
+
+> Este archivo documenta todos los puntos de conexión del ecosistema Árbitro IA, tanto para desarrollo como para pruebas.

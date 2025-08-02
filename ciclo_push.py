@@ -4,7 +4,7 @@ import asyncio
 import json
 import datetime
 import os
-from utils.push import push_to_github
+from utils.push import push_to_repo
 from p2p_sources import get_binance_data, get_okx_data, get_bybit_data
 
 ARCHIVO_JSON = "public/datos_arbitraje.json"
@@ -56,7 +56,7 @@ async def ciclo_actualizacion():
                 json.dump(procesadas, f, indent=2, ensure_ascii=False)
 
             # Push a GitHub
-            push_to_github(ARCHIVO_JSON)
+            push_to_repo()
 
             print(f"✅ Señales actualizadas y subidas exitosamente.")
 

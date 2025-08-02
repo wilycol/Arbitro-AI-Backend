@@ -1,9 +1,11 @@
 services:
-  - type: cron
-    name: arbitro-json-updater
+  - type: web
+    name: arbitro-backend
     runtime: python
     repo: https://github.com/wilycol/Arbitro-AI
     branch: main
-    schedule: "*/3 * * * *"
     buildCommand: ""
-    startCommand: "python main.py"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
+    envVars:
+      - key: GITHUB_TOKEN
+        sync: false

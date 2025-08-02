@@ -12,6 +12,11 @@ CARPETA_HISTORIAL = "historial_arbitraje"
 ARCHIVO_DESTACADAS = "public/destacadas_arbitraje.json"
 INTERVALO_MINUTOS = 3
 
+# Variables para GitHub
+GITHUB_REPO = "wilycol/Arbitro-AI"
+GITHUB_BRANCH = "main"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")  # debe estar configurado en Render
+
 def formatear_senales(raw_data):
     resultado = []
     for entrada in raw_data:
@@ -77,10 +82,10 @@ async def ciclo_actualizacion():
             with open(ARCHIVO_DESTACADAS, "w", encoding="utf-8") as f:
                 json.dump(destacadas, f, indent=2, ensure_ascii=False)
 
-            # Push a GitHub
-            push_to_github(ARCHIVO_JSON)
-            push_to_github(archivo_historial)
-            push_to_github(ARCHIVO_DESTACADAS)
+            # Push a GitHub con todos los argumentos
+            push_to_github(ARCHIVO_JSON, GITHUB_REPO, GITHUB_BRANCH, GITHUB_TOKEN, ARCHIVO_JSON)
+            push_to_github(archivo_historial, GITHUB_REPO, GITHUB_BRANCH, GITHUB_TOKEN, archivo_historial)
+            push_to_github(ARCHIVO_DESTACADAS, GITHUB_REPO, GITHUB_BRANCH, GITHUB_TOKEN, ARCHIVO_DESTACADAS)
 
             print("✅ Señales actualizadas y subidas exitosamente.")
 
